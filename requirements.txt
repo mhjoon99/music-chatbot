@@ -1,0 +1,14 @@
+streamlit
+openai
+pandas
+scikit-learn
+numpy
+chromadb
+sentence-transformers
+spotipy
+plotly
+aiohttp
+python-dotenv
+extra-streamlit-components
+rank_bm25
+pytest

@@ -1,0 +1,31 @@
+# Secrets
+.env
+.cache
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Data (large/generated)
+data/chroma_db/
+data/mindtune.db
+data/song_descriptions.json
+data/Music_recommendation.csv
+data/.user_id
+evaluation/results/
+
+# IDE/Tool
+.pytest_cache/
+.omc/
+.claude/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# exec
+troubleshooting.md

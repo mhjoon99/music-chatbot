@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "query": "시험 끝나서 너무 신나! 신나는 곡 틀어줘",
+    "expected_intent": "emotion",
+    "category": "emotion",
+    "description": "단순 긍정 감정 - 신남",
+    "difficulty": "low"
+  },
+  {
+    "id": 2,
+    "query": "오늘 회사에서 크게 혼나고 왔는데, 지금 이 기분을 달래줄 노래 좀 추천해줘",
+    "expected_intent": "emotion",
+    "category": "emotion",
+    "description": "부정 감정 - 위로 필요",
+    "difficulty": "medium"
+  },
+  {
+    "id": 3,
+    "query": "우울한데 신나는 곡 추천해줘",
+    "expected_intent": "emotion",
+    "category": "emotion",
+    "description": "모순적 감정 요청 - 현재 감정과 원하는 음악이 불일치",
+    "difficulty": "high"
+  },
+  {
+    "id": 4,
+    "query": "러닝할 때 들을 빠른 템포 음악 추천해줘",
+    "expected_intent": "situation",
+    "category": "situation",
+    "description": "운동 상황 - 고템포 선호",
+    "difficulty": "low"
+  },
+  {
+    "id": 5,
+    "query": "비 오는 일요일 오후에 카페에서 책 읽을 건데, 배경 음악으로 좋은 곡들 골라줘",
+    "expected_intent": "situation",
+    "category": "situation",
+    "description": "복합 상황 - 날씨, 장소, 활동 조건 포함",
+    "difficulty": "medium"
+  },
+  {
+    "id": 6,
+    "query": "공부할 때 집중 잘 되는 음악 추천해줘. 근데 EDM은 싫어",
+    "expected_intent": "situation",
+    "category": "situation",
+    "description": "집중 공부 상황 - 장르 제외 조건 포함",
+    "difficulty": "high"
+  },
+  {
+    "id": 7,
+    "query": "Adele의 Someone Like You 같은 감성적인 곡 추천해줘",
+    "expected_intent": "similar",
+    "category": "similar",
+    "description": "유명 발라드 기반 - 감성적 유사곡",
+    "difficulty": "medium"
+  },
+  {
+    "id": 8,
+    "query": "Coldplay의 Yellow 같은 분위기인데 좀 덜 알려진 숨겨진 곡을 찾아줘",
+    "expected_intent": "similar",
+    "category": "similar",
+    "description": "유명 곡 기반 - 비주류 추천 요청",
+    "difficulty": "medium"
+  },
+  {
+    "id": 9,
+    "query": "The Weeknd의 Blinding Lights랑 비슷한 에너지인데, 힙합 장르에서 찾을 수 있을까?",
+    "expected_intent": "similar",
+    "category": "similar",
+    "description": "유명 곡 기반 - 다른 장르 교차 추천",
+    "difficulty": "high"
+  }
+]
