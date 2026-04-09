@@ -110,6 +110,12 @@ class MindTuneOrchestrator:
                 "iterations": 0
             }
 
+        # Step 1.5: 감정 추정 (Music Agent에 힌트 전달용)
+        user_emotion = estimate_user_emotion(user_message, gate_result)
+        if user_emotion.get("valence") is not None:
+            gate_result["user_emotion"] = user_emotion
+            print(f"[Emotion] valence={user_emotion['valence']}, energy={user_emotion['energy']}", flush=True)
+
         # Step 2: Music Agent — ReAct 루프
         _progress(msgs["search"])
         print("[Music] ReAct 루프 시작...", flush=True)
@@ -187,9 +193,6 @@ class MindTuneOrchestrator:
                 enriched_raw = json.dumps(data, ensure_ascii=False)
             except (json.JSONDecodeError, TypeError):
                 pass
-
-        # 사용자 감정 추정 (키워드 기반, LLM 호출 없음)
-        user_emotion = estimate_user_emotion(user_message, gate_result)
 
         return {
             "response": "",  # streaming 모드에서는 빈 문자열

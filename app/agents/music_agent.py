@@ -166,6 +166,8 @@ class MusicAgent:
                 # <think> 태그 제거
                 if "<think>" in content:
                     content = content.split("</think>")[-1].strip()
+                # ```json 코드블록 제거
+                content = self._strip_code_block(content)
                 print(f"[Music] 📝 최종 응답: {len(content)}자", flush=True)
                 # LLM 응답이 너무 짧거나 유효한 JSON이 아니면 폴백
                 if len(content) < 100 or not self._is_valid_recommendation_json(content):
@@ -230,10 +232,21 @@ class MusicAgent:
             "iterations": self.max_iterations
         }
 
+    def _strip_code_block(self, content: str) -> str:
+        """```json ... ``` 코드블록 감싸기 제거"""
+        content = content.strip()
+        if content.startswith("```"):
+            # 첫 줄 제거 (```json 또는 ```)
+            content = content.split("\n", 1)[-1] if "\n" in content else content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        return content.strip()
+
     def _is_valid_recommendation_json(self, content: str) -> bool:
         """응답이 recommendations를 포함한 유효한 JSON인지 확인"""
         try:
-            data = json.loads(content)
+            cleaned = self._strip_code_block(content)
+            data = json.loads(cleaned)
             recs = data.get("recommendations", [])
             return len(recs) > 0
         except (json.JSONDecodeError, TypeError):

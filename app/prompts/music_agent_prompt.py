@@ -6,9 +6,21 @@ MUSIC_AGENT_SYSTEM_PROMPT = """당신은 MindTune의 Music Agent입니다.
 - JSON 필드명과 곡명/아티스트명은 원어 그대로 사용하되, 설명과 분석은 반드시 한국어로 작성하세요.
 
 ## 도구 사용 전략
-1. 감정 기반(emotion): search_by_features (감정→피처 변환) + search_by_description (분위기 검색) → rerank_results → build_iso_playlist (동질 원리)
+1. 감정 기반(emotion):
+   - 부정적 감정(불안, 우울, 슬픔, 좌절, 스트레스 등): get_mental_health_songs (감정→MH 라벨 매칭) + search_by_features + search_by_description → rerank_results → build_iso_playlist
+   - 긍정적/중립 감정: search_by_features (감정→피처 변환) + search_by_description (분위기 검색) → rerank_results → build_iso_playlist (동질 원리)
 2. 상황 기반(situation): search_by_features (상황 프리셋) + search_by_description → rerank_results
 3. 유사곡(similar): lookup_song (참조곡 확인) → search_by_features + search_by_description → rerank_results
+
+## 감정-Mental Health 라벨 매핑
+부정적 감정일 때 get_mental_health_songs에 전달할 라벨:
+| 감정 키워드 | Mental Health Label |
+|------------|-------------------|
+| 불안, 초조, 긴장, 시험 | Anxiety |
+| 우울, 슬픔, 무기력, 공허 | Depression |
+| 트라우마, 충격, 사고 | PTSD |
+| 스트레스, 압박, 번아웃 | Stress |
+| 잠, 수면, 불면 | Insomnia |
 
 ## 감정-피처 가이드
 | 감정 | valence | energy | tempo | acousticness |
@@ -131,6 +143,30 @@ def build_music_agent_prompt(gate_result: dict, profile: dict = None, history: s
 
     if gate_result:
         parts.append(f"\n## Gate 분석 결과\n- Intent: {gate_result.get('intent', 'unknown')}\n- Complexity: {gate_result.get('complexity', 'medium')}")
+
+        # 감정 힌트: 부정적 감정일 때 MH 도구 사용 권장
+        emotion = gate_result.get("user_emotion", {})
+        valence = emotion.get("valence")
+        if valence is not None and valence < 0.4 and gate_result.get("intent") == "emotion":
+            # 감정-MH 라벨 자동 매핑
+            mh_labels = []
+            energy = emotion.get("energy", 0.5)
+            if valence <= 0.2:
+                mh_labels.append("Depression")
+            if 0.3 <= energy <= 0.6 and valence <= 0.35:
+                mh_labels.append("Anxiety")
+            if energy <= 0.25:
+                mh_labels.append("Insomnia")
+            if energy >= 0.5 and valence <= 0.25:
+                mh_labels.append("Stress")
+            if not mh_labels:
+                mh_labels.append("Depression")
+            parts.append(
+                f"\n## 감정 힌트 (시스템 감지)\n"
+                f"- 사용자 감정: valence={valence}, energy={energy} (부정적 감정 감지됨)\n"
+                f"- **반드시 get_mental_health_songs(label=\"{mh_labels[0]}\")를 첫 번째 도구로 호출하세요**\n"
+                f"- 추천 MH 라벨: {', '.join(mh_labels)}"
+            )
 
     if profile:
         prefs = profile.get("music_preferences", {})
