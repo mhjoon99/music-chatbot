@@ -11,6 +11,10 @@ class TestCheckDanger:
         "죽고 싶어",
         "자살하고 싶다",
         "자해를 했어",
+        "목숨을 끊고 싶어",
+        "끝내고 싶어 이제",
+        "살고 싶지 않아",
+        "죽을 것 같아",
         "생을 마감하고 싶어",
         "극단적인 선택을 하고 싶어",
     ])
@@ -34,6 +38,10 @@ class TestCheckDanger:
     def test_off_topic_response_has_examples(self):
         assert "MindTune" in OFF_TOPIC_RESPONSE
 
+    def test_off_topic_response_content(self):
+        assert "음악" in OFF_TOPIC_RESPONSE
+        assert "추천" in OFF_TOPIC_RESPONSE
+
 
 # ── validate_response ─────────────────────────────────────────────────
 
@@ -55,6 +63,13 @@ class TestValidateResponse:
         result = validate_response(text)
         assert phrase not in result
         assert "[부적절한 표현 제거됨]" in result
+
+    def test_multiple_forbidden_phrases_replaced(self):
+        text = "이 음악은 우울증을 치료합니다. 또한 불안 장애가 있는 분들에게도 진단이 가능해요."
+        result = validate_response(text)
+        assert "치료합니다" not in result
+        assert "장애가 있" not in result
+        assert result.count("[부적절한 표현 제거됨]") >= 2
 
 
 # ── verify_tracks_in_db ───────────────────────────────────────────────

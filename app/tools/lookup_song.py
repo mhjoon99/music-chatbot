@@ -33,6 +33,7 @@ def lookup_song(df: pd.DataFrame, track_name: str, artist: str = None) -> dict:
         "instrumentalness": float(row["instrumentalness"]),
         "speechiness": float(row["speechiness"]),
         "loudness": float(row.get("loudness", 0)),
+        "liveness": float(row.get("liveness", 0)),
         "popularity": int(row.get("track_popularity", 0)),
         "mental_health": row.get("Mental_Health_Label", "Normal")
     }

@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime
 from app.config import DATA_PATH
 from app.data.loader import load_and_preprocess
@@ -14,7 +15,11 @@ from app.data.embedder import load_descriptions, build_chroma_db
 from app.orchestrator import MindTuneOrchestrator
 from app.guardrails.output_validator import FORBIDDEN_PHRASES
 
-def load_queries(path="evaluation/eval_queries.json"):
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def load_queries(path=None):
+    if path is None:
+        path = os.path.join(BASE_DIR, "evaluation", "eval_queries.json")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -94,7 +99,7 @@ def eval_latency(results):
     return {
         "avg": round(sum(latencies) / n, 2),
         "p50": round(latencies[n // 2], 2),
-        "p95": round(latencies[int(n * 0.95)], 2),
+        "p95": round(latencies[min(int(n * 0.95), n - 1)], 2),
         "max": round(max(latencies), 2),
         "target_e2e": 15.0,
         "pass": sum(latencies) / n <= 15.0
@@ -183,10 +188,19 @@ def main():
             def on_progress(msg):
                 progress_count[0] += 1
 
-            result = orchestrator.process(q["query"], on_progress=on_progress)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(orchestrator.process, q["query"], on_progress=on_progress)
+                try:
+                    result = future.result(timeout=120)
+                except FuturesTimeoutError:
+                    result = {"error": "Timeout (120s)"}
             elapsed = time.time() - start
 
-            response_text = result.get("response", "")
+            care_stream = result.get("care_stream")
+            if care_stream:
+                response_text = "".join(chunk for chunk in care_stream)
+            else:
+                response_text = result.get("response", "")
             results.append({
                 "id": q["id"],
                 "query": q["query"],
@@ -236,8 +250,8 @@ def main():
 
     # 결과 저장
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"evaluation/results/eval_{timestamp}.json"
-    os.makedirs("evaluation/results", exist_ok=True)
+    output_path = os.path.join(BASE_DIR, "evaluation", "results", f"eval_{timestamp}.json")
+    os.makedirs(os.path.join(BASE_DIR, "evaluation", "results"), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
@@ -253,8 +267,11 @@ def main():
             print(f"\nLatency: avg={val['avg']}s, p50={val['p50']}s, p95={val['p95']}s [{pass_str}]")
         else:
             main_val = val.get("ratio") or val.get("accuracy", 0)
-            target = val.get("target", "?")
-            print(f"\n{key}: {main_val:.1%} (목표: {target:.0%}) [{pass_str}]")
+            target = val.get("target")
+            if isinstance(target, (int, float)):
+                print(f"\n{key}: {main_val:.1%} (목표: {target:.0%}) [{pass_str}]")
+            else:
+                print(f"\n{key}: {main_val:.1%} [{pass_str}]")
 
     print(f"\nEdge Cases: {len(edge_results)}개 테스트")
     for ec in edge_results:

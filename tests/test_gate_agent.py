@@ -48,8 +48,19 @@ class TestGateAgentRun:
             agent = GateAgent()
         return agent
 
-    def test_danger_detected_returns_danger_flag(self, gate):
-        result = gate.run("죽고 싶어... 너무 힘들어")
+    @pytest.mark.parametrize("text", [
+        "죽고 싶어... 너무 힘들어",
+        "자살을 생각하고 있어",
+        "자해를 했어",
+        "목숨을 끊고 싶어",
+        "끝내고 싶어 이제",
+        "살고 싶지 않아",
+        "죽을 것 같아",
+        "생을 마감하고 싶어",
+        "극단적인 선택을 하고 싶어",
+    ])
+    def test_danger_detected_returns_danger_flag(self, gate, text):
+        result = gate.run(text)
         assert result["safety_flag"] == "danger"
         assert result["intent"] == "emotion"
 
@@ -74,6 +85,17 @@ class TestGateAgentRun:
         result = gate.run("기분이 너무 좋아")
         assert result["intent"] == "emotion"
         assert result["safety_flag"] == "safe"
+        assert result["complexity"] == "medium"
+
+    def test_off_topic_returns_off_topic_flag(self, gate):
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = json.dumps({
+            "intent": "emotion", "safety_flag": "off_topic", "complexity": "low"
+        })
+        gate.client.chat.completions.create = MagicMock(return_value=mock_response)
+
+        result = gate.run("오늘 날씨 어때?")
+        assert result["safety_flag"] == "off_topic"
 
     def test_llm_json_parse_failure_falls_back_to_chaining(self, gate):
         # LLM이 잘못된 JSON 반환

@@ -47,8 +47,12 @@ def search_by_features(df: pd.DataFrame, params: dict) -> dict:
     return {
         "tracks": [
             {"track_id": r["track_id"], "track_name": r["track_name"], "track_artist": r["track_artist"],
-             "genre": r.get("playlist_subgenre", r["playlist_genre"]), "valence": float(r["valence"]), "energy": float(r["energy"]),
-             "tempo": float(r["tempo"]), "acousticness": float(r["acousticness"]),
+             "genre": r.get("playlist_subgenre", r["playlist_genre"]),
+             "valence": float(r["valence"]), "energy": float(r["energy"]),
+             "danceability": float(r.get("danceability", 0)), "tempo": float(r["tempo"]),
+             "acousticness": float(r["acousticness"]), "instrumentalness": float(r.get("instrumentalness", 0)),
+             "speechiness": float(r.get("speechiness", 0)), "loudness": float(r.get("loudness", 0)),
+             "liveness": float(r.get("liveness", 0)),
              "similarity": float(r["feature_similarity"]),
              "mental_health": r.get("Mental_Health_Label", "Normal")}
             for _, r in result.iterrows()

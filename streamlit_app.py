@@ -12,6 +12,7 @@ logging.getLogger("onnxruntime").setLevel(logging.ERROR)
 import streamlit as st
 import uuid
 import json
+import re
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -254,10 +255,6 @@ if prompt:
                         cols = st.columns(len(trending))
                         for col, t in zip(cols, trending):
                             with col:
-                                if t.get("album_art"):
-                                    st.image(t["album_art"], width=120)
-                                st.markdown(f"**{t['track_name'][:20]}**")
-                                st.caption(f"{t['artist'][:25]}")
                                 if t.get("spotify_url"):
                                     track_id = t["spotify_url"].split("/")[-1].split("?")[0]
                                     st.components.v1.html(
@@ -301,12 +298,105 @@ if prompt:
                 })
 
             # 응답 표시
-            response = result.get("response", "")
             music_raw = result.get("music_raw", "")
+            care_stream = result.get("care_stream")
 
-            # Care Agent 응답이 있으면 자연어로 표시
-            if response and response.strip():
-                st.markdown(response)
+            # 피처 라벨 매핑 (공통)
+            FEATURE_LABELS = {
+                "valence": "밝기", "energy": "활력", "danceability": "리듬감",
+                "tempo": "빠르기", "acousticness": "어쿠스틱", "instrumentalness": "연주비중",
+                "speechiness": "보컬비중", "loudness": "음량감", "liveness": "라이브감"
+            }
+
+            def _render_feature_caption(trk):
+                """피처 수치를 작은 회색 caption으로 표시"""
+                parts = []
+                for key, label in FEATURE_LABELS.items():
+                    val = trk.get(key)
+                    if val is not None:
+                        parts.append(f"{label} {val:.2f}" if isinstance(val, float) else f"{label} {val}")
+                if parts:
+                    st.caption(" · ".join(parts))
+
+            def _render_embed(trk):
+                """Spotify iframe 또는 YouTube 링크 표시"""
+                if trk.get("spotify_url"):
+                    spotify_url = trk["spotify_url"]
+                    tid = spotify_url.split("/track/")[-1].split("?")[0]
+                    st.markdown(f'<iframe src="https://open.spotify.com/embed/track/{tid}" width="100%" height="80" frameborder="0" allow="encrypted-media" loading="lazy"></iframe>', unsafe_allow_html=True)
+                elif trk.get("youtube_url"):
+                    st.link_button(f"▶️ YouTube에서 듣기", trk["youtube_url"])
+
+            # music_raw에서 추천 곡 리스트 추출
+            recs = []
+            if music_raw and music_raw.strip():
+                try:
+                    care_data = json.loads(music_raw)
+                    recs = care_data.get("recommendations", [])
+                except (json.JSONDecodeError, TypeError, KeyError):
+                    pass
+
+            # Care Agent streaming 표시
+            response = ""
+            if care_stream is not None:
+                # Phase 1: streaming으로 전체 텍스트 수집하며 실시간 표시 (마커 숨김)
+                stream_placeholder = st.empty()
+                full_response = ""
+                for chunk in care_stream:
+                    full_response += chunk
+                    # 마커를 숨기고 표시
+                    display_text = re.sub(r'\[/?SONG:\d+\]', '', full_response)
+                    stream_placeholder.markdown(display_text + "▌")
+                stream_placeholder.markdown(re.sub(r'\[/?SONG:\d+\]', '', full_response))
+                response = full_response
+
+                # Phase 2: streaming 완료 후 마커 기반 카드 UI로 재구성
+                has_markers = bool(re.search(r'\[SONG:\d+\]', response))
+                if has_markers and recs:
+                    stream_placeholder.empty()
+                    # [SONG:N] 마커로 분리
+                    parts = re.split(r'\[SONG:\d+\]', response)
+                    intro = parts[0].strip() if parts else ""
+                    # 각 곡 섹션에서 [/SONG:N] 뒤의 텍스트를 분리
+                    song_sections = []
+                    outro = ""
+                    for part in parts[1:]:
+                        if re.search(r'\[/SONG:\d+\]', part):
+                            song_text, remaining = re.split(r'\[/SONG:\d+\]', part, maxsplit=1)
+                            song_sections.append(song_text.strip())
+                            if remaining.strip():
+                                outro = remaining.strip()
+                        else:
+                            song_sections.append(part.strip())
+
+                    # 인트로 표시
+                    if intro:
+                        st.markdown(intro)
+
+                    # 각 곡 카드 렌더링
+                    for i, song_text in enumerate(song_sections):
+                        if not song_text:
+                            continue
+                        with st.container():
+                            st.markdown(song_text)
+                            if i < len(recs):
+                                _render_feature_caption(recs[i])
+                                _render_embed(recs[i])
+                            st.markdown("---")
+
+                    # 아웃트로 표시
+                    if outro:
+                        st.markdown(outro)
+
+                elif recs:
+                    # 마커 없음 폴백: 전체 텍스트 표시 + 아래에 카드 배치
+                    for i, track in enumerate(recs):
+                        with st.container():
+                            _render_feature_caption(track)
+                            _render_embed(track)
+
+                # 저장용 response에서 마커 제거
+                response = re.sub(r'\[/?SONG:\d+\]', '', response).strip()
             else:
                 # Care Agent 실패 → Music Agent JSON을 직접 파싱하여 카드로 표시
                 displayed = False
@@ -317,21 +407,16 @@ if prompt:
                         if recs:
                             analysis = data.get("analysis", "")
                             if analysis:
-                                st.markdown(f"🎵 {analysis}")
-                            st.markdown("---")
+                                st.markdown(f"**{analysis}**")
                             for i, track in enumerate(recs, 1):
-                                if track.get("spotify_url"):
-                                    spotify_url = track["spotify_url"]
-                                    track_id = spotify_url.split("/track/")[-1].split("?")[0]
-                                    embed_html = f'<iframe src="https://open.spotify.com/embed/track/{track_id}" width="100%" height="80" frameborder="0" allow="encrypted-media" loading="lazy"></iframe>'
-                                    st.markdown(embed_html, unsafe_allow_html=True)
-                                elif track.get("youtube_url"):
-                                    st.markdown(f"**{track['track_name']}** — {track['track_artist']}")
-                                    genre = track.get('genre') or track.get('playlist_genre') or track.get('playlist_subgenre') or '알 수 없음'
-                                    st.caption(f"장르: {genre}")
-                                    st.link_button("▶️ YouTube에서 듣기", track["youtube_url"])
-                                elif track.get("preview_url"):
-                                    st.audio(track["preview_url"])
+                                reason = track.get("reason", "")
+                                with st.container():
+                                    st.markdown(f"**{i}. {track.get('track_name', '')}** — {track.get('track_artist', '')}")
+                                    if reason:
+                                        st.markdown(f"{reason}")
+                                    _render_feature_caption(track)
+                                    _render_embed(track)
+                                    st.markdown("---")
                             if data.get("iso_applied"):
                                 direction = "점점 밝아지는" if data.get("iso_direction") == "ascending" else "현재 감정에서 시작하는"
                                 st.info(f"🎼 동질 원리 적용: {direction} 순서로 구성했어요.")

@@ -264,6 +264,13 @@ class MusicAgent:
                 "genre": t.get("genre", t.get("playlist_genre", "")),
                 "valence": t.get("valence", 0),
                 "energy": t.get("energy", 0),
+                "danceability": t.get("danceability", 0),
+                "tempo": t.get("tempo", 0),
+                "acousticness": t.get("acousticness", 0),
+                "instrumentalness": t.get("instrumentalness", 0),
+                "speechiness": t.get("speechiness", 0),
+                "loudness": t.get("loudness", 0),
+                "liveness": t.get("liveness", 0),
                 "reason": t.get("iso_explanation", ""),
             }
             recommendations.append(rec)

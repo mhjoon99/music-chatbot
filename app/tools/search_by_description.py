@@ -49,7 +49,7 @@ def search_by_description(query: str, genre_filter: list = None, top_k: int = 20
         where = None
     vec_results = collection.query(
         query_texts=[query], n_results=candidate_k, where=where,
-        include=["documents", "metadatas", "distances", "ids"]
+        include=["documents", "metadatas", "distances"]
     )
 
     # 벡터 결과 맵 구성: {id: (similarity, metadata)}
@@ -121,6 +121,13 @@ def search_by_description(query: str, genre_filter: list = None, top_k: int = 20
             "genre": meta.get("subgenre", "") or meta.get("genre", ""),
             "valence": meta.get("valence", 0),
             "energy": meta.get("energy", 0),
+            "danceability": meta.get("danceability", 0),
+            "tempo": meta.get("tempo", 0),
+            "acousticness": meta.get("acousticness", 0),
+            "instrumentalness": meta.get("instrumentalness", 0),
+            "speechiness": meta.get("speechiness", 0),
+            "loudness": meta.get("loudness", 0),
+            "liveness": meta.get("liveness", 0),
             "similarity": float(final_score),
             "mental_health": meta.get("mental_health", "Normal")
         })

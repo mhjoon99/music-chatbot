@@ -14,6 +14,10 @@ def get_mental_health_songs(df: pd.DataFrame, label: str, sort_by: str = "valenc
         "tracks": [
             {"track_id": r["track_id"], "track_name": r["track_name"], "track_artist": r["track_artist"],
              "genre": r.get("playlist_subgenre", r["playlist_genre"]), "valence": float(r["valence"]), "energy": float(r["energy"]),
+             "danceability": float(r.get("danceability", 0)), "tempo": float(r.get("tempo", 0)),
+             "acousticness": float(r.get("acousticness", 0)), "instrumentalness": float(r.get("instrumentalness", 0)),
+             "speechiness": float(r.get("speechiness", 0)), "loudness": float(r.get("loudness", 0)),
+             "liveness": float(r.get("liveness", 0)),
              "mental_health": r["Mental_Health_Label"]}
             for _, r in result.iterrows()
         ],

@@ -127,7 +127,7 @@ class MindTuneOrchestrator:
         print(f"[Music] 원본 응답 길이: {raw_len}자", flush=True)
         _progress(msgs["react"])
 
-        # Step 3: Care Agent + Spotify 검색 병렬 실행
+        # Step 3: Spotify 검색 → Care Agent streaming 준비
         music_raw = music_result.get("final_response", "")
 
         # 추천 곡 목록 추출 (Spotify 검색용)
@@ -139,28 +139,11 @@ class MindTuneOrchestrator:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        # 병렬 실행: Care Agent (공감 응답) + Spotify 검색 (URL/앨범아트)
-        care_response = ""
+        # Spotify 검색 (빠름, 먼저 완료)
         spotify_results = {}
-
-        def run_care():
-            if not music_raw:
-                return ""
-            print("[Care] 응답 생성 시작...", flush=True)
-            resp = self.care.run(
-                music_result=music_result,
-                gate_result=gate_result,
-                user_message=user_message,
-                history=history
-            )
-            print(f"[Care] 완료: 응답 길이 {len(resp)}자", flush=True)
-            return resp
-
-        def run_spotify():
-            if not recs or not is_spotify_available():
-                return {}
+        if recs and is_spotify_available():
+            _progress(msgs["care"])
             print(f"[Spotify] {len(recs)}곡 병렬 검색 시작...", flush=True)
-            results = {}
             with ThreadPoolExecutor(max_workers=5) as pool:
                 futures = {}
                 for rec in recs:
@@ -171,20 +154,21 @@ class MindTuneOrchestrator:
                 for future in futures:
                     track_name = futures[future]
                     try:
-                        results[track_name] = future.result(timeout=10)
+                        spotify_results[track_name] = future.result(timeout=10)
                     except Exception as e:
                         print(f"[Spotify] ⚠️ '{track_name}' 타임아웃/오류: {e}", flush=True)
-                        results[track_name] = {"found": False}
-            print(f"[Spotify] 병렬 검색 완료: {sum(1 for v in results.values() if v.get('found'))}/{len(results)}곡 매칭", flush=True)
-            return results
+                        spotify_results[track_name] = {"found": False}
+            print(f"[Spotify] 병렬 검색 완료: {sum(1 for v in spotify_results.values() if v.get('found'))}/{len(spotify_results)}곡 매칭", flush=True)
 
-        # 병렬 실행
-        _progress(msgs["care"])
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            care_future = executor.submit(run_care)
-            spotify_future = executor.submit(run_spotify)
-            care_response = care_future.result()
-            spotify_results = spotify_future.result()
+        # Care Agent streaming generator 준비 (Streamlit에서 소비)
+        care_stream = None
+        if music_raw:
+            care_stream = self.care.run_stream(
+                music_result=music_result,
+                gate_result=gate_result,
+                user_message=user_message,
+                history=history
+            )
 
         # Spotify 결과를 music_raw JSON에 병합
         enriched_raw = music_raw
@@ -204,15 +188,12 @@ class MindTuneOrchestrator:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        # Care Agent가 스킵된 경우에도 출력 가드레일 보장
-        if care_response:
-            care_response = validate_response(care_response)
-
         # 사용자 감정 추정 (키워드 기반, LLM 호출 없음)
         user_emotion = estimate_user_emotion(user_message, gate_result)
 
         return {
-            "response": care_response,
+            "response": "",  # streaming 모드에서는 빈 문자열
+            "care_stream": care_stream,  # Streamlit에서 소비할 generator
             "gate_result": gate_result,
             "tool_log": tool_log,
             "iterations": music_result.get("iterations", 0),

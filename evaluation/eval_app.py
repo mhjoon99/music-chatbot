@@ -27,6 +27,8 @@ from app.orchestrator import MindTuneOrchestrator
 
 FORBIDDEN_PHRASES = ["치료합니다", "치료할 수 있", "진단", "장애가 있", "병이 있", "처방"]
 
+EVAL_DIR = Path(__file__).resolve().parent
+
 st.set_page_config(page_title="MindTune 평가", page_icon="📊", layout="wide")
 
 # ── 시스템 초기화 ──
@@ -40,11 +42,11 @@ def init_system():
 
 @st.cache_data
 def load_queries():
-    with open("evaluation/eval_queries.json", "r", encoding="utf-8") as f:
+    with open(EVAL_DIR / "eval_queries.json", "r", encoding="utf-8") as f:
         return json.load(f)
 
 def load_existing_results():
-    results_dir = Path("evaluation/results")
+    results_dir = EVAL_DIR / "results"
     manual_files = sorted(results_dir.glob("manual_eval_*.json"), reverse=True)
     if manual_files:
         with open(manual_files[0], "r", encoding="utf-8") as f:
@@ -52,9 +54,10 @@ def load_existing_results():
     return {}
 
 def save_results(results):
-    os.makedirs("evaluation/results", exist_ok=True)
+    results_dir = EVAL_DIR / "results"
+    os.makedirs(results_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = f"evaluation/results/manual_eval_{timestamp}.json"
+    path = results_dir / f"manual_eval_{timestamp}.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     return path
@@ -197,7 +200,11 @@ if st.session_state.current_response:
 
         # Care Agent 응답
         st.markdown("**Care Agent 응답:**")
-        response = result.get("response", "")
+        care_stream = result.get("care_stream")
+        if care_stream:
+            response = "".join(chunk for chunk in care_stream)
+        else:
+            response = result.get("response", "")
         if response:
             st.markdown(response)
         else:
@@ -255,19 +262,23 @@ if st.session_state.current_response:
         notes = st.text_area("메모", existing.get("notes", ""))
 
         if st.button("✅ 채점 저장", type="primary"):
+            _saved = st.session_state.current_response or {}
+            _result = _saved.get("result", {})
+            _gate = _result.get("gate_result", {})
+            _latency = _saved.get("latency", 0)
             st.session_state.eval_results[q_id] = {
                 "query_id": q["id"],
                 "query": q["query"],
                 "category": q["category"],
                 "expected_intent": q["expected_intent"],
-                "actual_intent": gate.get("intent", ""),
+                "actual_intent": _gate.get("intent", ""),
                 "score_a": score_a,
                 "score_d": score_d,
                 "score_f": score_f,
                 "notes": notes,
-                "latency": latency,
-                "tool_count": len(result.get("tool_log", [])),
-                "iterations": result.get("iterations", 0),
+                "latency": _latency,
+                "tool_count": len(_result.get("tool_log", [])),
+                "iterations": _result.get("iterations", 0),
                 "timestamp": datetime.now().isoformat()
             }
             st.success("채점 저장됨!")

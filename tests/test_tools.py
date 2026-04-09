@@ -117,7 +117,8 @@ class TestLookupSong:
     def test_return_fields(self, sample_df):
         result = lookup_song(sample_df, "Happy Song")
         for field in ["track_id", "genre", "energy", "valence", "tempo", "danceability",
-                      "acousticness", "instrumentalness", "speechiness", "mental_health"]:
+                      "acousticness", "instrumentalness", "speechiness", "loudness", "liveness",
+                      "mental_health"]:
             assert field in result
 
 
@@ -173,6 +174,10 @@ class TestIsoPlaylist:
             assert "valence" in item
             assert "target_valence_step" in item
             assert "iso_explanation" in item
+            for field in ["energy", "danceability", "tempo", "acousticness",
+                          "instrumentalness", "speechiness", "loudness", "liveness",
+                          "genre", "track_artist"]:
+                assert field in item
 
     def test_no_duplicate_tracks(self, sample_df):
         track_ids = sample_df["track_id"].tolist()
@@ -316,9 +321,13 @@ class TestSearchByDescriptionHybrid:
         metas = [
             {"track_id": "t1", "track_name": "Happy Song", "track_artist": "Artist A",
              "genre": "pop", "subgenre": "dance pop", "valence": 0.9, "energy": 0.7,
+             "danceability": 0.8, "tempo": 120.0, "acousticness": 0.1,
+             "instrumentalness": 0.0, "speechiness": 0.05, "loudness": -5.0, "liveness": 0.1,
              "mental_health": "Normal"},
             {"track_id": "t2", "track_name": "Sad Ballad", "track_artist": "Artist B",
              "genre": "r&b", "subgenre": "neo soul", "valence": 0.15, "energy": 0.3,
+             "danceability": 0.3, "tempo": 70.0, "acousticness": 0.7,
+             "instrumentalness": 0.1, "speechiness": 0.04, "loudness": -12.0, "liveness": 0.2,
              "mental_health": "Depression"},
         ]
         mc, bm25_mock = self._make_mocks(ids, metas)
@@ -332,7 +341,9 @@ class TestSearchByDescriptionHybrid:
         assert isinstance(result["tracks"], list)
         for t in result["tracks"]:
             for field in ["track_id", "track_name", "track_artist", "genre",
-                          "valence", "energy", "similarity", "mental_health"]:
+                          "valence", "energy", "danceability", "tempo", "acousticness",
+                          "instrumentalness", "speechiness", "loudness", "liveness",
+                          "similarity", "mental_health"]:
                 assert field in t
 
     def test_hybrid_search_similarity_in_range(self):
@@ -373,3 +384,60 @@ class TestSearchByDescriptionHybrid:
 
         assert result["tracks"] == []
         assert result["count"] == 0
+
+
+# ── rerank_results ───────────────────────────────────────────────────────
+
+class TestReranker:
+    def test_emotion_intent_reranking(self, sample_df):
+        """emotion 인텐트로 후보 트랙 리랭킹 결과 포맷 확인"""
+        from app.tools.reranker import rerank_results
+        candidate_ids = sample_df["track_id"].tolist()
+        result = rerank_results(sample_df, "emotion", candidate_ids, top_k=3)
+        assert "tracks" in result
+        assert "count" in result
+        assert result["count"] <= 3
+        assert len(result["tracks"]) == result["count"]
+        for t in result["tracks"]:
+            assert "track_id" in t
+            assert "track_name" in t
+            assert "final_score" in t
+
+    def test_situation_intent_reranking(self, sample_df):
+        """situation 인텐트로 리랭킹 시 결과 반환 확인"""
+        from app.tools.reranker import rerank_results
+        candidate_ids = sample_df["track_id"].tolist()
+        result = rerank_results(sample_df, "situation", candidate_ids, top_k=5)
+        assert result["count"] > 0
+        assert len(result["tracks"]) <= 5
+
+    def test_similar_intent_reranking(self, sample_df):
+        """similar 인텐트로 리랭킹 시 결과 반환 확인"""
+        from app.tools.reranker import rerank_results
+        candidate_ids = sample_df["track_id"].tolist()
+        result = rerank_results(sample_df, "similar", candidate_ids, top_k=4)
+        assert result["count"] > 0
+        assert len(result["tracks"]) <= 4
+
+    def test_empty_candidates_returns_empty(self, sample_df):
+        """후보 트랙이 없을 때 빈 결과 반환 확인"""
+        from app.tools.reranker import rerank_results
+        result = rerank_results(sample_df, "emotion", [], top_k=5)
+        assert result["tracks"] == []
+        assert result["count"] == 0
+
+    def test_popularity_keyword_detection(self, sample_df):
+        """인기 키워드('유명한 팝송') 감지 시 popularity 가중치 상향 반영"""
+        from app.tools.reranker import rerank_results
+        candidate_ids = sample_df["track_id"].tolist()
+        # 인기 키워드 없는 경우
+        result_normal = rerank_results(sample_df, "emotion", candidate_ids, query_text="팝송", top_k=5)
+        # 인기 키워드 있는 경우
+        result_popular = rerank_results(sample_df, "emotion", candidate_ids, query_text="유명한 팝송", top_k=5)
+        # 둘 다 정상 결과 반환
+        assert result_normal["count"] > 0
+        assert result_popular["count"] > 0
+        # 인기 키워드 감지 시 가장 인기 있는 트랙(track_popularity 최대값)이 상위에 오를 가능성이 높음
+        # 최소한 결과가 비어있지 않고 final_score가 존재해야 함
+        for t in result_popular["tracks"]:
+            assert "final_score" in t

@@ -29,16 +29,29 @@ def build_iso_playlist(df: pd.DataFrame, track_ids: list, current_valence: float
             closest_idx = (remaining["valence"] - target_v).abs().idxmin()
         selected = remaining.loc[closest_idx]
         explanation = (
-            f"valence {selected['valence']:.2f}/energy {selected['energy']:.2f} → 목표 v={target_v:.2f}/e={energy_targets[i]:.2f} 단계"
+            f"valence {selected['valence']:.2f}/energy {selected['energy']:.2f}"
+            f"/dance {selected.get('danceability',0):.2f}/acoustic {selected.get('acousticness',0):.2f}"
+            f"/tempo {selected.get('tempo',0):.2f}"
+            f" → 목표 v={target_v:.2f}/e={energy_targets[i]:.2f} 단계"
             if use_energy else
-            f"valence {selected['valence']:.2f} → 목표 {target_v:.2f} 단계"
+            f"valence {selected['valence']:.2f}/dance {selected.get('danceability',0):.2f}"
+            f"/acoustic {selected.get('acousticness',0):.2f}/tempo {selected.get('tempo',0):.2f}"
+            f" → 목표 {target_v:.2f} 단계"
         )
         playlist.append({
             "track_id": selected["track_id"],
             "track_name": selected["track_name"],
             "track_artist": selected["track_artist"],
+            "genre": selected.get("playlist_subgenre", selected.get("playlist_genre", "")),
             "valence": float(selected["valence"]),
             "energy": float(selected["energy"]),
+            "danceability": float(selected.get("danceability", 0)),
+            "tempo": float(selected.get("tempo", 0)),
+            "acousticness": float(selected.get("acousticness", 0)),
+            "instrumentalness": float(selected.get("instrumentalness", 0)),
+            "speechiness": float(selected.get("speechiness", 0)),
+            "loudness": float(selected.get("loudness", 0)),
+            "liveness": float(selected.get("liveness", 0)),
             "target_valence_step": float(target_v),
             "iso_explanation": explanation
         })
